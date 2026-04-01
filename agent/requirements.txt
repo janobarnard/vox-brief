@@ -1,0 +1,10 @@
+boto3
+botocore==1.42.78
+aws-sdk-bedrock-runtime
+smithy-aws-core
+smithy-core
+fastapi
+uvicorn[standard]
+python-multipart
+cryptography<43
+awscrt>=0.30.0

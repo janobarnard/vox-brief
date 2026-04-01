@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+
+# Environment
+.env
+!.env.example
+
+# AWS build artifacts
+.build/
+agent.zip
+
+# Scratch / planning
+_scratch/
+
+# Node (if frontend build step added later)
+node_modules/
+.npm/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp

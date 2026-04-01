@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>vox-brief</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="styles.css">
+  <script>
+    tailwind.config = {
+      theme: { extend: { colors: { slate: { 950: '#020617' } } } }
+    }
+  </script>
+</head>
+<body class="bg-slate-950 min-h-screen text-white">
+
+  <!-- Header -->
+  <header class="border-b border-slate-800 bg-slate-900/60 backdrop-blur">
+    <div class="max-w-3xl mx-auto px-5 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 rounded-lg bg-violet-600 flex items-center justify-center text-sm font-bold">vb</div>
+        <span class="font-semibold text-white tracking-tight">vox-brief</span>
+      </div>
+      <span class="text-xs text-slate-500">Amazon Nova Sonic · AWS Bedrock</span>
+    </div>
+  </header>
+
+  <main class="max-w-3xl mx-auto px-5 py-8 space-y-5">
+
+    <!-- Agent card -->
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center">
+
+      <!-- Waveform avatar -->
+      <div class="relative inline-flex items-center justify-center mb-6">
+        <!-- Pulse ring (shown while connecting) -->
+        <div id="pulseRing" class="pulse-ring absolute w-24 h-24 rounded-full border-2 border-violet-500 opacity-0"></div>
+        <!-- Avatar circle -->
+        <div class="w-20 h-20 rounded-full bg-slate-800 border-2 border-slate-700 flex items-center justify-center">
+          <div id="waveform" class="waveform">
+            <div class="waveform-bar agent"></div>
+            <div class="waveform-bar agent"></div>
+            <div class="waveform-bar agent"></div>
+            <div class="waveform-bar agent"></div>
+            <div class="waveform-bar agent"></div>
+            <div class="waveform-bar agent"></div>
+            <div class="waveform-bar agent"></div>
+          </div>
+        </div>
+      </div>
+
+      <h2 class="text-lg font-semibold text-white">Alex</h2>
+      <p class="text-slate-400 text-sm mt-0.5 mb-6">AI Customer Research Interviewer</p>
+
+      <!-- Status text -->
+      <p id="statusText" class="text-slate-300 text-sm mb-6">Tap the button below to begin your interview.</p>
+
+      <!-- CTA button (idle / done states) -->
+      <div id="startWrap">
+        <button id="startBtn"
+          class="inline-flex items-center gap-2 bg-violet-600 hover:bg-violet-500 active:scale-95 text-white font-medium px-8 py-3 rounded-full transition-all shadow-lg shadow-violet-900/40">
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M2 3.5A1.5 1.5 0 013.5 2h1.148a1.5 1.5 0 011.465 1.175l.716 3.223a1.5 1.5 0 01-1.052 1.767l-.933.267c-.41.117-.643.555-.48.95a11.542 11.542 0 006.254 6.254c.395.163.833-.07.95-.48l.267-.933a1.5 1.5 0 011.767-1.052l3.223.716A1.5 1.5 0 0118 15.352V16.5a1.5 1.5 0 01-1.5 1.5H15c-1.149 0-2.263-.15-3.326-.43A13.022 13.022 0 012.43 8.326 13.019 13.019 0 012 5V3.5z"/>
+          </svg>
+          Talk with Agent
+        </button>
+      </div>
+
+      <!-- In-call controls (hidden until live) -->
+      <div id="callControls" class="hidden flex items-center justify-center gap-4">
+        <button id="muteBtn"
+          class="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm px-5 py-2.5 rounded-full border border-slate-700 transition-all">
+          <svg id="muteIcon" class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M7 4a3 3 0 016 0v6a3 3 0 11-6 0V4zm-1.5 6.2a.75.75 0 00-1.5.1A6.002 6.002 0 009.25 16.25v1a.75.75 0 001.5 0v-1A6.002 6.002 0 0014 10.3a.75.75 0 10-1.5-.1 4.5 4.5 0 01-9 0z"/>
+          </svg>
+          <span id="muteLabel">Mute</span>
+        </button>
+        <button id="hangupBtn"
+          class="flex items-center gap-2 bg-red-600 hover:bg-red-500 active:scale-95 text-white text-sm px-5 py-2.5 rounded-full transition-all">
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M2 3.5A1.5 1.5 0 013.5 2h1.148a1.5 1.5 0 011.465 1.175l.716 3.223a1.5 1.5 0 01-1.052 1.767l-.933.267c-.41.117-.643.555-.48.95a11.542 11.542 0 006.254 6.254c.395.163.833-.07.95-.48l.267-.933a1.5 1.5 0 011.767-1.052l3.223.716A1.5 1.5 0 0118 15.352V16.5a1.5 1.5 0 01-1.5 1.5H15c-1.149 0-2.263-.15-3.326-.43A13.022 13.022 0 012.43 8.326 13.019 13.019 0 012 5V3.5z"/>
+          </svg>
+          Hang Up
+        </button>
+      </div>
+
+    </div>
+
+    <!-- Transcript card (shown during and after call) -->
+    <div id="transcriptCard" class="hidden bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+      <div class="px-5 py-3 border-b border-slate-800 flex items-center justify-between">
+        <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Live Transcript</span>
+        <div id="recDot" class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
+      </div>
+      <div id="transcriptBody" class="p-5 space-y-3 max-h-72 overflow-y-auto text-sm">
+        <!-- Lines injected by JS -->
+      </div>
+    </div>
+
+    <!-- Digest card (shown after call) -->
+    <div id="digestCard" class="hidden space-y-4">
+
+      <!-- Processing indicator -->
+      <div id="digestLoading" class="bg-slate-900 border border-slate-800 rounded-2xl p-6 text-center">
+        <div class="inline-flex items-center gap-3 text-slate-400 text-sm">
+          <svg class="w-5 h-5 animate-spin text-violet-400" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+          </svg>
+          Generating your call digest…
+        </div>
+      </div>
+
+      <!-- Digest content (hidden until digest arrives) -->
+      <div id="digestContent" class="hidden space-y-4">
+
+        <!-- Sentiment + summary -->
+        <div class="digest-section bg-slate-900 border border-slate-800 rounded-2xl p-6">
+          <div class="flex items-start justify-between gap-4 mb-4">
+            <h3 class="text-base font-semibold text-white">Call Summary</h3>
+            <span id="sentimentBadge" class="text-xs font-medium px-3 py-1 rounded-full shrink-0"></span>
+          </div>
+          <p id="digestSummary" class="text-slate-300 text-sm leading-relaxed"></p>
+        </div>
+
+        <!-- Takeaways -->
+        <div id="takeawaysSection" class="digest-section bg-slate-900 border border-slate-800 rounded-2xl p-6">
+          <h3 class="text-sm font-semibold text-violet-400 uppercase tracking-wider mb-3">Key Takeaways</h3>
+          <ul id="digestTakeaways" class="space-y-2 text-sm text-slate-300"></ul>
+        </div>
+
+        <!-- Action items -->
+        <div id="actionsSection" class="digest-section bg-slate-900 border border-slate-800 rounded-2xl p-6">
+          <h3 class="text-sm font-semibold text-amber-400 uppercase tracking-wider mb-3">Action Items</h3>
+          <ul id="digestActions" class="space-y-2 text-sm text-slate-300"></ul>
+        </div>
+
+        <!-- Danger items -->
+        <div id="dangersSection" class="digest-section bg-slate-900 border border-slate-800 rounded-2xl p-6">
+          <h3 class="text-sm font-semibold text-red-400 uppercase tracking-wider mb-3">Danger Items</h3>
+          <ul id="digestDangers" class="space-y-2 text-sm text-slate-300"></ul>
+        </div>
+
+        <!-- New call button -->
+        <div class="text-center pb-4">
+          <button id="newCallBtn"
+            class="inline-flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm px-6 py-2.5 rounded-full border border-slate-700 transition-all">
+            Start a new interview
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
