@@ -148,7 +148,7 @@ class NovaSonicSession:
 
                 elif "textOutput" in ev:
                     text = ev["textOutput"].get("content", "").strip()
-                    if text:
+                    if text and not text.startswith("{"):
                         mapped = "agent" if role == "ASSISTANT" else "user"
                         key = (mapped, text)
                         if key in self._seen_transcripts:
