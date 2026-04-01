@@ -18,6 +18,7 @@ let isMuted = false;
 let lastTranscriptRole = null;
 let lastTranscriptContent = null;
 let pendingAgentText = []; // { text, showAt }
+let scheduledSources = [];
 
 // ============================================================
 // DOM refs
@@ -137,6 +138,23 @@ function playAudioChunk(b64) {
   if (nextPlayTime < now) nextPlayTime = now + 0.05; // small initial buffer
   source.start(nextPlayTime);
   nextPlayTime += buffer.duration;
+  scheduledSources.push(source);
+  source.onended = () => {
+    scheduledSources = scheduledSources.filter(s => s !== source);
+  };
+}
+
+function clearAudioQueue() {
+  for (const s of scheduledSources) {
+    try { s.stop(); } catch {}
+  }
+  scheduledSources = [];
+  nextPlayTime = 0;
+  pendingAgentText = [];
+  // Truncate last agent line to show it was interrupted
+  if (lastTranscriptRole === 'agent' && lastTranscriptContent) {
+    lastTranscriptContent.textContent = lastTranscriptContent.textContent.trimEnd() + '…';
+  }
 }
 
 // ============================================================
@@ -203,6 +221,7 @@ function handleMessage(msg) {
       break;
 
     case 'transcript':
+      if (msg.role === 'user') clearAudioQueue();
       addTranscriptLine(msg.role, msg.text);
       if (msg.role === 'agent') setWaveformActive(false);
       break;
