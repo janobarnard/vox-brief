@@ -6,6 +6,7 @@ Endpoints:
   GET /health         — health check
 """
 
+import asyncio
 import json
 import logging
 import os
@@ -17,6 +18,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
+from digest import generate_digest
 from nova_sonic import NovaSonicSession
 
 FRONTEND = os.path.join(os.path.dirname(__file__), "..", "frontend")
@@ -57,6 +59,9 @@ async def call_ws(ws: WebSocket):
     await ws.accept()
     log.info("WebSocket connected")
 
+    transcript = []
+    done_event = asyncio.Event()
+
     async def send(msg: dict):
         try:
             await ws.send_text(json.dumps(msg))
@@ -68,11 +73,23 @@ async def call_ws(ws: WebSocket):
 
     async def on_transcript(role: str, text: str):
         log.info("[transcript] %s: %s", role, text)
+        transcript.append({"role": role, "text": text})
         await send({"type": "transcript", "role": role, "text": text})
 
     async def on_done():
         log.info("Nova Sonic session done")
-        await send({"type": "status", "state": "done"})
+        if transcript:
+            try:
+                await send({"type": "status", "state": "processing"})
+                digest = await asyncio.to_thread(generate_digest, transcript)
+                await send({"type": "digest", "data": digest})
+            except Exception as exc:
+                log.exception("Digest generation failed: %s", exc)
+                await send({"type": "error", "message": f"Digest failed: {exc}"})
+                await send({"type": "status", "state": "done"})
+        else:
+            await send({"type": "status", "state": "done"})
+        done_event.set()
 
     async def on_error(message: str):
         log.error("Nova Sonic error: %s", message)
@@ -100,6 +117,8 @@ async def call_ws(ws: WebSocket):
             elif msg.get("type") == "hangup":
                 log.info("Hangup received")
                 await session.close()
+                # Wait for digest to be generated and sent before closing WS
+                await done_event.wait()
                 break
 
     except WebSocketDisconnect:

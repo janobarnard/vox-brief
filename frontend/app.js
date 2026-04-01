@@ -254,6 +254,12 @@ function handleStatus(s) {
     case 'processing':
       setState('processing');
       setStatus('Generating your call digest…');
+      stopCapture();
+      recDot.classList.add('hidden');
+      setWaveformActive(false);
+      digestCard.classList.remove('hidden');
+      digestLoading.classList.remove('hidden');
+      digestContent.classList.add('hidden');
       break;
 
     case 'done':
@@ -347,12 +353,16 @@ function renderDigest(data) {
   digestSummary.textContent = data.summary || '';
 
   // Sentiment badge
-  const s = data.sentiment?.overall || 'neutral';
+  const s = data.sentiment || 'neutral';
   sentimentBadge.textContent = s.charAt(0).toUpperCase() + s.slice(1);
   sentimentBadge.className = `text-xs font-medium px-3 py-1 rounded-full shrink-0 sentiment-${s}`;
 
-  // Takeaways
-  renderList(digestTakeaways, data.takeaways || [], '→');
+  // Highlights + pain points as takeaways
+  const takeaways = [
+    ...(data.highlights || []).map(h => '✦ ' + h),
+    ...(data.pain_points || []).map(p => '✗ ' + p),
+  ];
+  renderList(digestTakeaways, takeaways, '→');
 
   // Action items
   renderList(digestActions, data.action_items || [], '✓');
