@@ -38,16 +38,18 @@ app.add_middleware(
 async def health():
     return {"status": "ok"}
 
+NO_CACHE = {"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"}
+
 @app.get("/")
 async def serve_index():
-    return FileResponse(os.path.join(FRONTEND, "index.html"))
+    return FileResponse(os.path.join(FRONTEND, "index.html"), headers=NO_CACHE)
 
 @app.get("/{filename}")
 async def serve_static(filename: str):
     filepath = os.path.join(FRONTEND, filename)
     if not os.path.isfile(filepath):
         return FileResponse(os.path.join(FRONTEND, "index.html"), status_code=404)
-    return FileResponse(filepath)
+    return FileResponse(filepath, headers=NO_CACHE)
 
 
 @app.websocket("/ws/call")

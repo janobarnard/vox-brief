@@ -69,6 +69,7 @@ class NovaSonicSession:
         self._closed = False
         self._audio_block_open = False
         self._send_queue: asyncio.Queue = asyncio.Queue()
+        self._seen_transcripts: set = set()
 
     # ------------------------------------------------------------------
     # Public API
@@ -149,6 +150,11 @@ class NovaSonicSession:
                     text = ev["textOutput"].get("content", "").strip()
                     if text:
                         mapped = "agent" if role == "ASSISTANT" else "user"
+                        key = (mapped, text)
+                        if key in self._seen_transcripts:
+                            log.info("[rx] duplicate suppressed: %r", text[:60])
+                            continue
+                        self._seen_transcripts.add(key)
                         log.info("[rx] transcript %s: %r", mapped, text[:80])
                         await self.on_transcript(mapped, text)
 

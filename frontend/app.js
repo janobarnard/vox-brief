@@ -15,6 +15,9 @@ let mediaStream = null;
 let scriptProcessor = null;
 let nextPlayTime = 0;
 let isMuted = false;
+let pendingTranscripts = [];
+let lastTranscriptRole = null;
+let lastTranscriptContent = null;
 
 // ============================================================
 // DOM refs
@@ -250,6 +253,7 @@ function onCallEnded() {
   stopCapture();
   recDot.classList.add('hidden');
   setWaveformActive(false);
+  flushPendingTranscripts();
   digestCard.classList.remove('hidden');
   digestLoading.classList.remove('hidden');
   digestContent.classList.add('hidden');
@@ -260,26 +264,66 @@ function onCallEnded() {
 // ============================================================
 
 function addTranscriptLine(role, text) {
+  if (role === 'agent') {
+    pendingTranscripts.push({ role, text });
+    return;
+  }
+  _renderTranscriptLine(role, text);
+}
+
+function _renderTranscriptLine(role, text) {
   transcriptCard.classList.remove('hidden');
 
-  const line = document.createElement('div');
-  line.className = 'transcript-line flex gap-2';
+  // Group consecutive messages from the same role into one entry
+  if (role === lastTranscriptRole && lastTranscriptContent) {
+    lastTranscriptContent.textContent += ' ' + text;
+  } else {
+    const line = document.createElement('div');
+    line.className = 'transcript-line flex gap-2';
 
-  const label = document.createElement('span');
-  label.className = role === 'agent'
-    ? 'text-violet-400 font-medium shrink-0 w-12 text-right'
-    : 'text-indigo-400 font-medium shrink-0 w-12 text-right';
-  label.textContent = role === 'agent' ? 'Alex' : 'You';
+    const label = document.createElement('span');
+    label.className = role === 'agent'
+      ? 'text-violet-400 font-medium shrink-0 w-12 text-right'
+      : 'text-indigo-400 font-medium shrink-0 w-12 text-right';
+    label.textContent = role === 'agent' ? 'Alex' : 'You';
 
-  const content = document.createElement('span');
-  content.className = 'text-slate-300 leading-snug';
-  content.textContent = text;
+    const content = document.createElement('span');
+    content.className = 'text-slate-300 leading-snug';
+    content.textContent = text;
 
-  line.appendChild(label);
-  line.appendChild(content);
-  transcriptBody.appendChild(line);
+    line.appendChild(label);
+    line.appendChild(content);
+    transcriptBody.appendChild(line);
+
+    lastTranscriptRole = role;
+    lastTranscriptContent = content;
+  }
   transcriptBody.scrollTop = transcriptBody.scrollHeight;
 }
+
+function flushPendingTranscripts() {
+  while (pendingTranscripts.length > 0) {
+    const { role, text } = pendingTranscripts.shift();
+    _renderTranscriptLine(role, text);
+  }
+}
+
+// Show pending agent text once the audio queue has drained (Alex finished speaking)
+let audioDrainedAt = 0;
+setInterval(() => {
+  if (!audioCtx || pendingTranscripts.length === 0) return;
+  const buffered = nextPlayTime - audioCtx.currentTime;
+  if (buffered <= 0.1) {
+    // Audio queue is empty — debounce 400ms to avoid gaps between chunks
+    if (audioDrainedAt === 0) audioDrainedAt = Date.now();
+    if (Date.now() - audioDrainedAt >= 400) {
+      flushPendingTranscripts();
+      audioDrainedAt = 0;
+    }
+  } else {
+    audioDrainedAt = 0;
+  }
+}, 80);
 
 // ============================================================
 // Digest rendering
@@ -378,6 +422,9 @@ startBtn.addEventListener('click', () => {
   isMuted = false;
   muteLabel.textContent = 'Mute';
   nextPlayTime = 0;
+  pendingTranscripts = [];
+  lastTranscriptRole = null;
+  lastTranscriptContent = null;
   connect();
 });
 
