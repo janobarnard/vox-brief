@@ -1,0 +1,329 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: vox-brief — AgentCore Runtime, presign API, S3/CloudFront frontend, DynamoDB
+
+Parameters:
+  EcrImageUri:
+    Type: String
+    Description: >
+      ECR image URI for the agent container,
+      e.g. 123456789012.dkr.ecr.us-east-1.amazonaws.com/vox-brief-agent:latest
+
+Resources:
+
+  # ────────────────────────────────────────────────────────────────
+  # DynamoDB — call records (wired up in future storage step)
+  # ────────────────────────────────────────────────────────────────
+  CallsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: vox-brief-calls
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: call_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: call_id
+          KeyType: HASH
+
+  # ────────────────────────────────────────────────────────────────
+  # AgentCore Runtime — IAM execution role
+  # ────────────────────────────────────────────────────────────────
+  AgentRuntimeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: vox-brief-agent-runtime-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: bedrock-agentcore.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: AgentRuntimePolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # ECR — pull container image
+              - Effect: Allow
+                Action: ecr:GetAuthorizationToken
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - ecr:BatchGetImage
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:BatchCheckLayerAvailability
+                Resource: !Sub "arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/vox-brief-agent"
+
+              # Bedrock — Nova Sonic (streaming) + Nova Pro (digest)
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                  - bedrock:InvokeModelWithResponseStream
+                  - bedrock:InvokeModelWithBidirectionalStream
+                Resource: !Sub "arn:aws:bedrock:${AWS::Region}::foundation-model/amazon.nova*"
+
+              # DynamoDB — call records
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:Query
+                Resource: !GetAtt CallsTable.Arn
+
+              # CloudWatch Logs
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - logs:DescribeLogGroups
+                  - logs:DescribeLogStreams
+                Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/bedrock-agentcore/runtimes/*"
+
+              # X-Ray
+              - Effect: Allow
+                Action:
+                  - xray:PutTraceSegments
+                  - xray:PutTelemetryRecords
+                  - xray:GetSamplingRules
+                  - xray:GetSamplingTargets
+                Resource: "*"
+
+              # CloudWatch Metrics
+              - Effect: Allow
+                Action: cloudwatch:PutMetricData
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    cloudwatch:namespace: bedrock-agentcore
+
+  # ────────────────────────────────────────────────────────────────
+  # AgentCore Runtime
+  # ────────────────────────────────────────────────────────────────
+  AgentRuntime:
+    Type: AWS::BedrockAgentCore::Runtime
+    Properties:
+      AgentRuntimeName: voxBriefAgent
+      Description: vox-brief voice interview agent (Nova 2 Sonic + Nova Pro)
+      AgentRuntimeArtifact:
+        ContainerConfiguration:
+          ContainerUri: !Ref EcrImageUri
+      NetworkConfiguration:
+        NetworkMode: PUBLIC
+      ProtocolConfiguration: HTTP
+      RoleArn: !GetAtt AgentRuntimeRole.Arn
+      EnvironmentVariables:
+        AWS_DEFAULT_REGION: !Ref AWS::Region
+        DYNAMODB_TABLE: !Ref CallsTable
+
+  # ────────────────────────────────────────────────────────────────
+  # Presign Lambda — generates SigV4 presigned WSS URL
+  # ────────────────────────────────────────────────────────────────
+  PresignLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: vox-brief-presign-lambda-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: PresignPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: bedrock-agentcore:InvokeAgentRuntimeWithWebSocketStream
+                Resource: !GetAtt AgentRuntime.AgentRuntimeArn
+
+  PresignLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: vox-brief-presign
+      Runtime: python3.12
+      Handler: index.handler
+      Role: !GetAtt PresignLambdaRole.Arn
+      Timeout: 10
+      Environment:
+        Variables:
+          RUNTIME_ARN: !GetAtt AgentRuntime.AgentRuntimeArn
+          REGION: !Ref AWS::Region
+      Code:
+        ZipFile: |
+          import json, os, boto3
+          from botocore.auth import SigV4QueryAuth
+          from botocore.awsrequest import AWSRequest
+
+          def handler(event, context):
+              method = event.get('requestContext', {}).get('http', {}).get('method', 'POST')
+              if method == 'OPTIONS':
+                  return {
+                      'statusCode': 200,
+                      'headers': {
+                          'Access-Control-Allow-Origin': '*',
+                          'Access-Control-Allow-Methods': 'POST,OPTIONS',
+                          'Access-Control-Allow-Headers': 'Content-Type',
+                      },
+                      'body': '',
+                  }
+
+              region = os.environ['REGION']
+              runtime_arn = os.environ['RUNTIME_ARN']
+
+              session = boto3.Session()
+              creds = session.get_credentials().get_frozen_credentials()
+
+              host = f'bedrock-agentcore.{region}.amazonaws.com'
+              url = f'https://{host}/runtimes/{runtime_arn}/ws'
+
+              request = AWSRequest(method='GET', url=url, headers={'host': host})
+              auth = SigV4QueryAuth(creds, 'bedrock-agentcore', region, expires=300)
+              auth.add_auth(request)
+
+              ws_url = str(request.url).replace('https://', 'wss://')
+
+              return {
+                  'statusCode': 200,
+                  'headers': {
+                      'Content-Type': 'application/json',
+                      'Access-Control-Allow-Origin': '*',
+                  },
+                  'body': json.dumps({'wsUrl': ws_url}),
+              }
+
+  # ────────────────────────────────────────────────────────────────
+  # API Gateway HTTP — POST /presign
+  # ────────────────────────────────────────────────────────────────
+  PresignApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: vox-brief-presign-api
+      ProtocolType: HTTP
+      CorsConfiguration:
+        AllowOrigins:
+          - "*"
+        AllowMethods:
+          - POST
+          - OPTIONS
+        AllowHeaders:
+          - Content-Type
+
+  PresignApiStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref PresignApi
+      StageName: $default
+      AutoDeploy: true
+
+  PresignIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref PresignApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${PresignLambda.Arn}/invocations"
+      PayloadFormatVersion: "2.0"
+
+  PresignRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref PresignApi
+      RouteKey: "POST /presign"
+      Target: !Sub "integrations/${PresignIntegration}"
+
+  PresignLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref PresignLambda
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PresignApi}/*/*/presign"
+
+  # ────────────────────────────────────────────────────────────────
+  # S3 — frontend bucket (private, served via CloudFront OAC)
+  # ────────────────────────────────────────────────────────────────
+  FrontendBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "vox-brief-frontend-${AWS::AccountId}-${AWS::Region}"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  FrontendOAC:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: vox-brief-oac
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  FrontendBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref FrontendBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub "${FrontendBucket.Arn}/*"
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${FrontendDistribution}"
+
+  # ────────────────────────────────────────────────────────────────
+  # CloudFront — HTTPS frontend
+  # ────────────────────────────────────────────────────────────────
+  FrontendDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        DefaultRootObject: index.html
+        Enabled: true
+        HttpVersion: http2
+        Origins:
+          - Id: s3-frontend
+            DomainName: !GetAtt FrontendBucket.RegionalDomainName
+            OriginAccessControlId: !Ref FrontendOAC
+            S3OriginConfig: {}
+        DefaultCacheBehavior:
+          TargetOriginId: s3-frontend
+          ViewerProtocolPolicy: redirect-to-https
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6  # CachingOptimized
+          AllowedMethods: [GET, HEAD, OPTIONS]
+        CustomErrorResponses:
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+
+Outputs:
+  FrontendUrl:
+    Description: CloudFront URL for the frontend
+    Value: !Sub "https://${FrontendDistribution.DomainName}"
+
+  PresignApiUrl:
+    Description: API Gateway URL for presigning WebSocket connections
+    Value: !Sub "https://${PresignApi}.execute-api.${AWS::Region}.amazonaws.com/presign"
+
+  FrontendBucketName:
+    Description: S3 bucket name for frontend assets
+    Value: !Ref FrontendBucket
+
+  RuntimeArn:
+    Description: AgentCore Runtime ARN
+    Value: !GetAtt AgentRuntime.AgentRuntimeArn

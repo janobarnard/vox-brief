@@ -1,9 +1,20 @@
 // ============================================================
 // Config
 // ============================================================
-const WS_URL = 'ws://localhost:8000/ws/call';
+const LOCAL_WS_URL = 'ws://localhost:8000/ws/call';
 const SAMPLE_RATE = 16000;         // Must match Nova Sonic config
 const CAPTURE_BUFFER = 4096;       // ScriptProcessor buffer size
+
+async function getWsUrl() {
+  // On localhost: use local dev server directly
+  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    return LOCAL_WS_URL;
+  }
+  // In production: fetch a SigV4 presigned URL from the presign API
+  const cfg = await fetch('/config.json').then(r => r.json());
+  const { wsUrl } = await fetch(cfg.presignUrl, { method: 'POST' }).then(r => r.json());
+  return wsUrl;
+}
 
 // ============================================================
 // State
@@ -172,7 +183,8 @@ async function connect() {
     return;
   }
 
-  ws = new WebSocket(WS_URL);
+  const wsUrl = await getWsUrl();
+  ws = new WebSocket(wsUrl);
 
   ws.onopen = () => {
     // Connection open — wait for server "ready" status

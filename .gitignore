@@ -16,6 +16,9 @@ build/
 .build/
 agent.zip
 
+# Generated at deploy time — contains presign API URL
+frontend/config.json
+
 # Scratch / planning
 _scratch/
 
