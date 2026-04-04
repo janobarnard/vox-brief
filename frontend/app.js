@@ -471,6 +471,16 @@ startBtn.addEventListener('click', () => {
 });
 
 hangupBtn.addEventListener('click', () => {
+  // Immediately stop audio and update UI — don't wait for server
+  clearAudioQueue();
+  stopCapture();
+  setState('processing');
+  setStatus('Call ended — generating your digest…');
+  recDot.classList.add('hidden');
+  setWaveformActive(false);
+  digestCard.classList.remove('hidden');
+  digestLoading.classList.remove('hidden');
+  digestContent.classList.add('hidden');
   disconnect();
 });
 

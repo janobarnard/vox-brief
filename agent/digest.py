@@ -35,12 +35,14 @@ The JSON must match this exact schema:
 }
 
 Rules:
+- ONLY include information that was EXPLICITLY stated in the transcript. NEVER invent, infer, or fabricate details that the customer did not actually say.
+- If the interview was cut short or barely started, reflect that honestly — use empty lists and a summary like "The interview ended before substantive feedback was gathered."
 - Each list item is a single concise sentence
-- highlights and pain_points: 1-5 items each
-- action_items: 1-4 items (only if there is evidence in the transcript)
+- highlights and pain_points: 0-5 items each (0 if no evidence in transcript)
+- action_items: 0-4 items (0 if no evidence in transcript)
 - danger_items: 0-3 items (only include real red flags — leave the list empty if none)
-- sentiment: overall emotional tone of the customer across the whole interview
-- nps_score: extract the number the customer stated; null if they declined or were unclear
+- sentiment: overall emotional tone of the customer across the whole interview; use "neutral" if the call was too short to determine
+- nps_score: extract the number the customer stated; null if they declined, were unclear, or were not asked
 """.strip()
 
 
@@ -83,7 +85,7 @@ def generate_digest(transcript: list[dict]) -> dict:
             ],
             "inferenceConfig": {
                 "maxTokens": 1024,
-                "temperature": 0.3,
+                "temperature": 0.1,
                 "topP": 0.9,
             },
         }),
