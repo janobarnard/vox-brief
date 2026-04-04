@@ -3,7 +3,7 @@
 # vox-brief deployment script
 #
 # Usage:
-#   ./deploy.sh [--profile <aws-profile>] [--region <aws-region>]
+#   ./deploy.sh [--profile <aws-profile>] [--region <aws-region>] [--password <demo-password>]
 #
 # Requirements: aws-cli, docker (with buildx), jq
 # ─────────────────────────────────────────────────────────────────────────────
@@ -11,11 +11,13 @@ set -euo pipefail
 
 PROFILE="default"
 REGION="us-east-1"
+DEMO_PASSWORD=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --profile) PROFILE="$2"; shift 2 ;;
-    --region)  REGION="$2";  shift 2 ;;
+    --profile)   PROFILE="$2";       shift 2 ;;
+    --region)    REGION="$2";        shift 2 ;;
+    --password)  DEMO_PASSWORD="$2"; shift 2 ;;
     *) echo "Unknown argument: $1"; exit 1 ;;
   esac
 done
@@ -71,10 +73,15 @@ echo "  Pushed: $IMAGE_URI"
 # ─────────────────────────────────────────────────────────────────────────────
 echo "→ Deploying main stack…"
 DEPLOY_TS=$(date +%s)
+DEMO_PASSWORD_B64=""
+if [[ -n "$DEMO_PASSWORD" ]]; then
+  DEMO_PASSWORD_B64=$(printf 'demo:%s' "$DEMO_PASSWORD" | base64 -w0)
+  echo "  Basic Auth enabled (username: demo)"
+fi
 $AWS cloudformation deploy \
   --template-file infra/template.yaml \
   --stack-name vox-brief \
-  --parameter-overrides "EcrImageUri=$IMAGE_URI" "DeployTimestamp=$DEPLOY_TS" \
+  --parameter-overrides "EcrImageUri=$IMAGE_URI" "DeployTimestamp=$DEPLOY_TS" "DemoPasswordB64=$DEMO_PASSWORD_B64" \
   --capabilities CAPABILITY_NAMED_IAM \
   --no-fail-on-empty-changeset
 
