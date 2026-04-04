@@ -105,7 +105,8 @@ echo "  Runtime ARN: $RUNTIME_ARN"
 echo "→ Writing frontend/config.json…"
 cat > frontend/config.json <<EOF
 {
-  "presignUrl": "$PRESIGN_URL"
+  "presignUrl": "$PRESIGN_URL",
+  "demoToken": "$DEMO_PASSWORD_B64"
 }
 EOF
 

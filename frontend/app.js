@@ -12,7 +12,9 @@ async function getWsUrl() {
   }
   // In production: fetch a SigV4 presigned URL from the presign API
   const cfg = await fetch('/config.json').then(r => r.json());
-  const { wsUrl } = await fetch(cfg.presignUrl, { method: 'POST' }).then(r => r.json());
+  const headers = { 'Content-Type': 'application/json' };
+  if (cfg.demoToken) headers['x-demo-token'] = cfg.demoToken;
+  const { wsUrl } = await fetch(cfg.presignUrl, { method: 'POST', headers }).then(r => r.json());
   return wsUrl;
 }
 

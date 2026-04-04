@@ -171,6 +171,7 @@ Resources:
         Variables:
           RUNTIME_ARN: !GetAtt AgentRuntime.AgentRuntimeArn
           REGION: !Ref AWS::Region
+          DEMO_TOKEN: !Ref DemoPasswordB64
       Code:
         ZipFile: |
           import json, os, uuid, boto3
@@ -186,10 +187,24 @@ Resources:
                       'headers': {
                           'Access-Control-Allow-Origin': '*',
                           'Access-Control-Allow-Methods': 'POST,OPTIONS',
-                          'Access-Control-Allow-Headers': 'Content-Type',
+                          'Access-Control-Allow-Headers': 'Content-Type,x-demo-token',
                       },
                       'body': '',
                   }
+
+              demo_token = os.environ.get('DEMO_TOKEN', '')
+              if demo_token:
+                  headers = event.get('headers', {})
+                  req_token = headers.get('x-demo-token', '')
+                  if req_token != demo_token:
+                      return {
+                          'statusCode': 403,
+                          'headers': {
+                              'Content-Type': 'application/json',
+                              'Access-Control-Allow-Origin': '*',
+                          },
+                          'body': json.dumps({'error': 'Forbidden'}),
+                      }
 
               region = os.environ['REGION']
               runtime_arn = os.environ['RUNTIME_ARN']
@@ -238,6 +253,7 @@ Resources:
           - OPTIONS
         AllowHeaders:
           - Content-Type
+          - x-demo-token
 
   PresignApiStage:
     Type: AWS::ApiGatewayV2::Stage
