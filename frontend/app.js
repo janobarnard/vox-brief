@@ -283,7 +283,11 @@ function handleStatus(s) {
       break;
 
     case 'done':
-      onCallEnded();
+      // No digest coming (e.g. empty transcript) — go straight to idle
+      stopCapture();
+      setWaveformActive(false);
+      setState('done');
+      setStatus('Interview ended — no feedback to summarise.');
       break;
   }
 }
@@ -474,10 +478,19 @@ hangupBtn.addEventListener('click', () => {
   // Immediately stop audio and update UI — don't wait for server
   clearAudioQueue();
   stopCapture();
-  setState('processing');
-  setStatus('Call ended — generating your digest…');
   recDot.classList.add('hidden');
   setWaveformActive(false);
+
+  // If no transcript lines exist, skip digest entirely
+  if (transcriptBody.children.length === 0) {
+    setState('done');
+    setStatus('Interview ended — no feedback to summarise.');
+    disconnect();
+    return;
+  }
+
+  setState('processing');
+  setStatus('Call ended — generating your digest…');
   digestCard.classList.remove('hidden');
   digestLoading.classList.remove('hidden');
   digestContent.classList.add('hidden');
