@@ -30,3 +30,4 @@ Fully serverless architecture on AWS. No EC2 instances, no ECS clusters, no pers
 ### Security
 - **AWS IAM** — roles for AgentCore Runtime and presign Lambda
 - **SigV4 presigned URLs** — secures WebSocket connections to AgentCore
+- **AWS WAF** (optional) — rate limiting (300 req/5min per IP) and AWS managed common rule set, enabled via `--waf` flag

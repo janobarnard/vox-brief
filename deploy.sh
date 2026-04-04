@@ -3,7 +3,7 @@
 # vox-brief deployment script
 #
 # Usage:
-#   ./deploy.sh [--profile <aws-profile>] [--region <aws-region>] [--password <demo-password>]
+#   ./deploy.sh [--profile <aws-profile>] [--region <aws-region>] [--password <demo-password>] [--waf]
 #
 # Requirements: aws-cli, docker (with buildx), jq
 # ─────────────────────────────────────────────────────────────────────────────
@@ -12,12 +12,14 @@ set -euo pipefail
 PROFILE="default"
 REGION="us-east-1"
 DEMO_PASSWORD=""
+ENABLE_WAF="false"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --profile)   PROFILE="$2";       shift 2 ;;
     --region)    REGION="$2";        shift 2 ;;
     --password)  DEMO_PASSWORD="$2"; shift 2 ;;
+    --waf)       ENABLE_WAF="true";  shift ;;
     *) echo "Unknown argument: $1"; exit 1 ;;
   esac
 done
@@ -81,7 +83,7 @@ fi
 $AWS cloudformation deploy \
   --template-file infra/template.yaml \
   --stack-name vox-brief \
-  --parameter-overrides "EcrImageUri=$IMAGE_URI" "DeployTimestamp=$DEPLOY_TS" "DemoPasswordB64=$DEMO_PASSWORD_B64" \
+  --parameter-overrides "EcrImageUri=$IMAGE_URI" "DeployTimestamp=$DEPLOY_TS" "DemoPasswordB64=$DEMO_PASSWORD_B64" "EnableWAF=$ENABLE_WAF" \
   --capabilities CAPABILITY_NAMED_IAM \
   --no-fail-on-empty-changeset
 
