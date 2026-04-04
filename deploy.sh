@@ -70,10 +70,11 @@ echo "  Pushed: $IMAGE_URI"
 # Phase 3 — Deploy main stack
 # ─────────────────────────────────────────────────────────────────────────────
 echo "→ Deploying main stack…"
+DEPLOY_TS=$(date +%s)
 $AWS cloudformation deploy \
   --template-file infra/template.yaml \
   --stack-name vox-brief \
-  --parameter-overrides "EcrImageUri=$IMAGE_URI" \
+  --parameter-overrides "EcrImageUri=$IMAGE_URI" "DeployTimestamp=$DEPLOY_TS" \
   --capabilities CAPABILITY_NAMED_IAM \
   --no-fail-on-empty-changeset
 

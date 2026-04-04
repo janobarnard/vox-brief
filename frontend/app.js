@@ -187,7 +187,10 @@ async function connect() {
   ws = new WebSocket(wsUrl);
 
   ws.onopen = () => {
-    // Connection open — wait for server "ready" status
+    // Send a start message immediately — AgentCore's WS proxy
+    // doesn't forward server→client messages until the client
+    // sends at least one message.
+    ws.send(JSON.stringify({ type: 'start' }));
   };
 
   ws.onmessage = (ev) => {

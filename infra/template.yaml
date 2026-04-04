@@ -7,6 +7,10 @@ Parameters:
     Description: >
       ECR image URI for the agent container,
       e.g. 123456789012.dkr.ecr.us-east-1.amazonaws.com/vox-brief-agent:latest
+  DeployTimestamp:
+    Type: String
+    Default: '0'
+    Description: Change this value to force a runtime redeployment
 
 Resources:
 
@@ -117,6 +121,7 @@ Resources:
       EnvironmentVariables:
         AWS_DEFAULT_REGION: !Ref AWS::Region
         DYNAMODB_TABLE: !Ref CallsTable
+        DEPLOY_VERSION: !Ref DeployTimestamp
 
   # ────────────────────────────────────────────────────────────────
   # Presign Lambda — generates SigV4 presigned WSS URL
@@ -140,8 +145,12 @@ Resources:
             Version: '2012-10-17'
             Statement:
               - Effect: Allow
-                Action: bedrock-agentcore:InvokeAgentRuntimeWithWebSocketStream
-                Resource: !GetAtt AgentRuntime.AgentRuntimeArn
+                Action:
+                  - bedrock-agentcore:InvokeAgentRuntime
+                  - bedrock-agentcore:InvokeAgentRuntimeWithWebSocketStream
+                  - bedrock-agentcore:InvokeRuntime
+                  - bedrock-agentcore:InvokeRuntimeWithResponseStream
+                Resource: "*"
 
   PresignLambda:
     Type: AWS::Lambda::Function
@@ -157,7 +166,8 @@ Resources:
           REGION: !Ref AWS::Region
       Code:
         ZipFile: |
-          import json, os, boto3
+          import json, os, uuid, boto3
+          from urllib.parse import quote, urlencode
           from botocore.auth import SigV4QueryAuth
           from botocore.awsrequest import AWSRequest
 
@@ -181,7 +191,14 @@ Resources:
               creds = session.get_credentials().get_frozen_credentials()
 
               host = f'bedrock-agentcore.{region}.amazonaws.com'
-              url = f'https://{host}/runtimes/{runtime_arn}/ws'
+              # URL-encode the full ARN (colons and slashes must be encoded)
+              encoded_arn = quote(runtime_arn, safe='')
+              session_id = str(uuid.uuid4())
+              qs = urlencode({
+                  'qualifier': 'DEFAULT',
+                  'X-Amzn-Bedrock-AgentCore-Runtime-Session-Id': session_id,
+              })
+              url = f'https://{host}/runtimes/{encoded_arn}/ws?{qs}'
 
               request = AWSRequest(method='GET', url=url, headers={'host': host})
               auth = SigV4QueryAuth(creds, 'bedrock-agentcore', region, expires=300)
