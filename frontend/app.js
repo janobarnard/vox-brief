@@ -37,6 +37,7 @@ let scheduledSources = [];
 const startBtn        = document.getElementById('startBtn');
 const startWrap       = document.getElementById('startWrap');
 const callControls    = document.getElementById('callControls');
+const callEndedWrap   = document.getElementById('callEndedWrap');
 const muteBtn         = document.getElementById('muteBtn');
 const muteLabel       = document.getElementById('muteLabel');
 const muteIcon        = document.getElementById('muteIcon');
@@ -174,15 +175,19 @@ function clearAudioQueue() {
 
 async function connect() {
   setState('connecting');
+  setStatus('Requesting microphone access…');
+  pulseRing.style.opacity = '1';
 
   try {
     await startCapture();
   } catch (e) {
     setStatus('Microphone access denied.', 'error');
+    pulseRing.style.opacity = '0';
     setState('idle');
     return;
   }
 
+  setStatus('Connecting to Alex…');
   const wsUrl = await getWsUrl();
   ws = new WebSocket(wsUrl);
 
@@ -416,9 +421,11 @@ function setState(s) {
 
   const showStart    = s === 'idle' || s === 'done';
   const showControls = s === 'live';
+  const showEnded    = s === 'processing';
 
   startWrap.classList.toggle('hidden', !showStart);
   callControls.classList.toggle('hidden', !showControls);
+  callEndedWrap.classList.toggle('hidden', !showEnded);
 
   startBtn.textContent = s === 'done' ? 'Start Another Interview' : 'Talk with Agent';
   if (s === 'done') {
