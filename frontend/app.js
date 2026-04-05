@@ -515,6 +515,6 @@ newCallBtn.addEventListener('click', () => {
   isMuted = false;
   nextPlayTime = 0;
   setState('idle');
-  setStatus('Tap the button below to begin your interview.');
+  setStatus('Click the button below to begin your interview.');
   connect();
 });
