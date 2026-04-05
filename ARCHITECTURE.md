@@ -5,7 +5,7 @@ Fully serverless architecture on AWS. No EC2 instances, no ECS clusters, no pers
 ## AWS Services
 
 ### Voice & AI
-- **Amazon Nova Sonic** (Bedrock) — real-time bidirectional voice streaming for the interview agent
+- **Amazon Nova 2 Sonic** (Bedrock) — real-time bidirectional voice streaming for the interview agent
 - **Amazon Nova Pro** (Bedrock) — generates the post-call digest (summary, takeaways, action items)
 
 ### Compute & Runtime
