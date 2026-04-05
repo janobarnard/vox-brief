@@ -269,7 +269,7 @@ function handleStatus(s) {
 
     case 'live':
       setState('live');
-      setStatus('Alex is ready. Your interview has begun.');
+      setStatus('Alex is ready. Say hello to start the conversation.');
       pulseRing.style.opacity = '0';
       break;
 
