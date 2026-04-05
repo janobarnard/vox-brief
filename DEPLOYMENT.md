@@ -2,22 +2,24 @@
 
 ## Prerequisites
 
-- AWS CLI configured with a profile (e.g. `cloudvisor-sandbox`)
+- AWS CLI configured with a profile
 - Docker with buildx support (Docker Desktop or similar)
 - `jq` installed
-- Bedrock model access enabled for Nova Sonic and Nova Pro in the target region
 
 ## Deploy
 
 ```bash
+git clone git@github.com:janobarnard/vox-brief.git
+cd vox-brief
+
 # Without WAF (basic auth only)
-./deploy.sh --profile cloudvisor-sandbox --password <your-demo-password>
+./deploy.sh --profile <your-aws-profile> --password <your-demo-password>
 
 # With WAF (adds rate limiting + AWS managed rules, ~$7/month)
-./deploy.sh --profile cloudvisor-sandbox --password <your-demo-password> --waf
+./deploy.sh --profile <your-aws-profile> --password <your-demo-password> --waf
 
 # Without auth (open access — not recommended)
-./deploy.sh --profile cloudvisor-sandbox
+./deploy.sh --profile <your-aws-profile>
 ```
 
 The script will:
@@ -27,28 +29,34 @@ The script will:
 4. Write `frontend/config.json` with the presign API URL and auth token
 5. Upload frontend assets to S3
 
+The CloudFront URL is printed at the end.
+
 ### Login credentials
 
 - **Username:** `demo`
 - **Password:** whatever you passed via `--password`
+
+### Cold start
+
+The first call after a fresh deploy (or after a period of inactivity) takes 30-60 seconds while the container starts. Make a test call a couple of minutes before a live demo to warm it up.
 
 ## Tear down
 
 CloudFormation cannot delete non-empty S3 buckets, so empty it first:
 
 ```bash
-AWS_PROFILE=cloudvisor-sandbox
+PROFILE=<your-aws-profile>
 
 # 1. Empty the frontend bucket
-aws --profile $AWS_PROFILE --region us-east-1 \
-  s3 rm s3://vox-brief-frontend-$(aws --profile $AWS_PROFILE sts get-caller-identity --query Account --output text)-us-east-1 --recursive
+aws --profile $PROFILE --region us-east-1 \
+  s3 rm s3://vox-brief-frontend-$(aws --profile $PROFILE sts get-caller-identity --query Account --output text)-us-east-1 --recursive
 
 # 2. Delete the main stack
-aws --profile $AWS_PROFILE --region us-east-1 \
+aws --profile $PROFILE --region us-east-1 \
   cloudformation delete-stack --stack-name vox-brief
 
 # 3. (Optional) Delete the bootstrap stack (ECR repo + images)
-aws --profile $AWS_PROFILE --region us-east-1 \
+aws --profile $PROFILE --region us-east-1 \
   cloudformation delete-stack --stack-name vox-brief-bootstrap
 ```
 
