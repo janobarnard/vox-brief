@@ -20,6 +20,7 @@ from fastapi.responses import FileResponse
 
 from digest import generate_digest
 from nova_sonic import NovaSonicSession
+from prompt import SCENARIOS, DEFAULT_SCENARIO
 
 FRONTEND = os.path.join(os.path.dirname(__file__), "..", "frontend")
 
@@ -95,14 +96,23 @@ async def call_ws(ws: WebSocket):
         log.error("Nova Sonic error: %s", message)
         await send({"type": "error", "message": message})
 
-    session = NovaSonicSession(
-        on_audio=on_audio,
-        on_transcript=on_transcript,
-        on_done=on_done,
-        on_error=on_error,
-    )
+    session = None
 
     try:
+        raw = await ws.receive_text()
+        msg = json.loads(raw)
+        scenario_id = msg.get("scenario", DEFAULT_SCENARIO)
+        scenario = SCENARIOS.get(scenario_id, SCENARIOS[DEFAULT_SCENARIO])
+        log.info("Scenario: %s", scenario_id)
+
+        session = NovaSonicSession(
+            on_audio=on_audio,
+            on_transcript=on_transcript,
+            on_done=on_done,
+            on_error=on_error,
+            system_prompt=scenario["prompt"],
+        )
+
         await send({"type": "status", "state": "connecting"})
         await session.start()
         await send({"type": "status", "state": "live"})
@@ -123,8 +133,10 @@ async def call_ws(ws: WebSocket):
 
     except WebSocketDisconnect:
         log.info("WebSocket disconnected")
-        await session.close()
+        if session:
+            await session.close()
     except Exception as exc:
         log.exception("Unexpected error: %s", exc)
         await send({"type": "error", "message": str(exc)})
-        await session.close()
+        if session:
+            await session.close()
