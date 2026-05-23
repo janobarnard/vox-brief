@@ -1,4 +1,26 @@
 // ============================================================
+// Theme toggle
+// ============================================================
+
+function updateThemeIcon() {
+  const isDark = document.documentElement.classList.contains('dark');
+  document.getElementById('iconSun').classList.toggle('hidden', !isDark);
+  document.getElementById('iconMoon').classList.toggle('hidden', isDark);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  updateThemeIcon();
+  document.getElementById('themeToggle').addEventListener('click', () => {
+    const html = document.documentElement;
+    html.classList.add('theme-transitioning');
+    html.classList.toggle('dark');
+    localStorage.setItem('theme', html.classList.contains('dark') ? 'dark' : 'light');
+    updateThemeIcon();
+    setTimeout(() => html.classList.remove('theme-transitioning'), 300);
+  });
+});
+
+// ============================================================
 // Config
 // ============================================================
 const LOCAL_WS_URL = 'ws://localhost:8000/ws/call';
@@ -348,12 +370,12 @@ function _renderTranscriptLine(role, text) {
 
     const label = document.createElement('span');
     label.className = role === 'agent'
-      ? 'text-violet-400 font-medium shrink-0 w-12 text-right'
-      : 'text-indigo-400 font-medium shrink-0 w-12 text-right';
+      ? 'transcript-agent font-medium shrink-0 w-12 text-right'
+      : 'transcript-user font-medium shrink-0 w-12 text-right';
     label.textContent = role === 'agent' ? 'Alex' : 'You';
 
     const content = document.createElement('span');
-    content.className = 'text-slate-300 leading-snug';
+    content.className = 'transcript-text leading-snug';
     content.textContent = text;
 
     line.appendChild(label);
@@ -444,9 +466,9 @@ function setState(s) {
 function setStatus(text, type = '') {
   statusText.textContent = text;
   statusText.className = {
-    error: 'text-red-400 text-sm mb-6',
-    done:  'text-green-400 text-sm mb-6',
-  }[type] ?? 'text-slate-300 text-sm mb-6';
+    error: 'error text-sm mb-6',
+    done:  'success text-sm mb-6',
+  }[type] ?? 'text-sm mb-6';
 }
 
 function setWaveformActive(active, role = 'agent') {
