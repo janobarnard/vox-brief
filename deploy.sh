@@ -3,9 +3,14 @@
 # vox-brief deployment script
 #
 # Usage:
-#   ./deploy.sh [--profile <aws-profile>] [--region <aws-region>] [--password <demo-password>] [--waf]
+#   ./deploy.sh [--profile <aws-profile>] [--region <aws-region>] \
+#               [--password <demo-password>] [--waf] [--prebuilt]
 #
-# Requirements: aws-cli, docker (with buildx), jq
+# --prebuilt  Skip Docker build — pull the public image from Docker Hub.
+#             Only requires: aws-cli, jq  (no Docker needed)
+#
+# Requirements (full build): aws-cli, docker (with buildx), jq
+# Requirements (--prebuilt): aws-cli, jq
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
@@ -13,6 +18,8 @@ PROFILE="default"
 REGION="us-east-1"
 DEMO_PASSWORD=""
 ENABLE_WAF="false"
+PREBUILT="false"
+DOCKERHUB_IMAGE="janobarnard/vox-brief:latest"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -20,6 +27,7 @@ while [[ $# -gt 0 ]]; do
     --region)    REGION="$2";        shift 2 ;;
     --password)  DEMO_PASSWORD="$2"; shift 2 ;;
     --waf)       ENABLE_WAF="true";  shift ;;
+    --prebuilt)  PREBUILT="true";    shift ;;
     *) echo "Unknown argument: $1"; exit 1 ;;
   esac
 done
@@ -30,9 +38,12 @@ AWS="aws --profile $PROFILE --region $REGION"
 # Phase 0 — Prerequisites
 # ─────────────────────────────────────────────────────────────────────────────
 echo "→ Checking prerequisites…"
-for cmd in aws docker jq; do
+for cmd in aws jq; do
   command -v "$cmd" &>/dev/null || { echo "✗ $cmd not found"; exit 1; }
 done
+if [[ "$PREBUILT" == "false" ]]; then
+  command -v docker &>/dev/null || { echo "✗ docker not found (use --prebuilt to skip the Docker build)"; exit 1; }
+fi
 
 ACCOUNT_ID=$($AWS sts get-caller-identity --query Account --output text)
 echo "  Account: $ACCOUNT_ID  Region: $REGION  Profile: $PROFILE"
@@ -53,22 +64,37 @@ ECR_URI=$($AWS cloudformation describe-stacks \
 echo "  ECR: $ECR_URI"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Phase 2 — Docker build and push (ARM64)
+# Phase 2 — Image: build from source OR pull prebuilt from Docker Hub
 # ─────────────────────────────────────────────────────────────────────────────
-echo "→ Logging in to ECR…"
-$AWS ecr get-login-password | docker login \
-  --username AWS \
-  --password-stdin "$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com"
-
 IMAGE_URI="$ECR_URI:latest"
-echo "→ Building ARM64 image (this may take a few minutes on x86)…"
-docker buildx build \
-  --platform linux/arm64 \
-  --tag "$IMAGE_URI" \
-  --push \
-  ./agent
 
-echo "  Pushed: $IMAGE_URI"
+if [[ "$PREBUILT" == "true" ]]; then
+  echo "→ Pulling prebuilt image from Docker Hub…"
+  docker pull --platform linux/arm64 "$DOCKERHUB_IMAGE"
+
+  echo "→ Logging in to ECR…"
+  $AWS ecr get-login-password | docker login \
+    --username AWS \
+    --password-stdin "$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com"
+
+  echo "→ Pushing to ECR…"
+  docker tag "$DOCKERHUB_IMAGE" "$IMAGE_URI"
+  docker push "$IMAGE_URI"
+  echo "  Pushed: $IMAGE_URI"
+else
+  echo "→ Logging in to ECR…"
+  $AWS ecr get-login-password | docker login \
+    --username AWS \
+    --password-stdin "$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com"
+
+  echo "→ Building ARM64 image (this may take a few minutes on x86)…"
+  docker buildx build \
+    --platform linux/arm64 \
+    --tag "$IMAGE_URI" \
+    --push \
+    ./agent
+  echo "  Pushed: $IMAGE_URI"
+fi
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Phase 3 — Deploy main stack
