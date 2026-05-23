@@ -54,6 +54,40 @@
   to   { opacity: 1; transform: translateY(0);   }
 }
 
+/* ── Scenario picker cards ────────────────────────────────────────────── */
+.scenario-card {
+  background: #f8fafc;          /* slate-50 */
+  border-color: #e2e8f0;        /* slate-200 */
+  color: #475569;               /* slate-600 */
+  cursor: pointer;
+}
+.scenario-card:hover {
+  border-color: #FF5600;
+  color: #1e293b;
+}
+.scenario-card.selected {
+  border-color: #FF5600;
+  background: #fff7f3;
+  color: #1e293b;
+}
+.scenario-card .scenario-name { color: #FF5600; }
+
+.dark .scenario-card {
+  background: #1e293b;          /* slate-800 */
+  border-color: #334155;        /* slate-700 */
+  color: #94a3b8;               /* slate-400 */
+}
+.dark .scenario-card:hover {
+  border-color: #FF5600;
+  color: #e2e8f0;
+}
+.dark .scenario-card.selected {
+  border-color: #FF5600;
+  background: #2a1a0e;
+  color: #e2e8f0;
+}
+.dark .scenario-card .scenario-name { color: #FF9966; }
+
 /* ── Theme-aware colors for JS-injected elements ──────────────────────── */
 
 /* Status text */

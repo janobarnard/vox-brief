@@ -20,6 +20,7 @@ from fastapi.responses import JSONResponse
 
 from digest import generate_digest
 from nova_sonic import NovaSonicSession
+from prompt import SCENARIOS, DEFAULT_SCENARIO
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -52,6 +53,7 @@ async def call_ws(ws: WebSocket):
 
     transcript = []
     done_event = asyncio.Event()
+    session = None
 
     # AgentCore's WS proxy only delivers server→client messages while the
     # server is handling a client message.  Background tasks (Nova Sonic
@@ -106,20 +108,23 @@ async def call_ws(ws: WebSocket):
         log.error("Nova Sonic error: %s", message)
         enqueue({"type": "error", "message": message})
 
-    session = NovaSonicSession(
-        on_audio=on_audio,
-        on_transcript=on_transcript,
-        on_done=on_done,
-        on_error=on_error,
-    )
-
     try:
         # Wait for the client's first message before starting.
         # AgentCore's WS proxy doesn't forward server→client messages
         # until the client has sent at least one message.
         raw = await ws.receive_text()
         msg = json.loads(raw)
-        log.info("First client message: %s", msg.get("type"))
+        scenario_id = msg.get("scenario", DEFAULT_SCENARIO)
+        scenario = SCENARIOS.get(scenario_id, SCENARIOS[DEFAULT_SCENARIO])
+        log.info("First client message: %s  scenario: %s", msg.get("type"), scenario_id)
+
+        session = NovaSonicSession(
+            on_audio=on_audio,
+            on_transcript=on_transcript,
+            on_done=on_done,
+            on_error=on_error,
+            system_prompt=scenario["prompt"],
+        )
 
         await send_now({"type": "status", "state": "connecting"})
         await session.start()
@@ -144,8 +149,10 @@ async def call_ws(ws: WebSocket):
 
     except WebSocketDisconnect:
         log.info("WebSocket disconnected")
-        await session.close()
+        if session:
+            await session.close()
     except Exception as exc:
         log.exception("Unexpected error: %s", exc)
         await send_now({"type": "error", "message": str(exc)})
-        await session.close()
+        if session:
+            await session.close()

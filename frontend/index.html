@@ -81,10 +81,29 @@
       </div>
 
       <h2 class="text-lg font-semibold text-slate-900 dark:text-white">Alex</h2>
-      <p class="text-slate-500 dark:text-slate-400 text-sm mt-0.5 mb-6">AI Customer Research Interviewer</p>
+      <p id="agentSubtitle" class="text-slate-500 dark:text-slate-400 text-sm mt-0.5 mb-6">Reimbursly · Customer Research Interviewer</p>
 
       <!-- Status text -->
-      <p id="statusText" class="text-sm mb-6">Click the button below to begin your interview.</p>
+      <p id="statusText" class="text-sm mb-6">Choose a scenario below, then begin your interview.</p>
+
+      <!-- Scenario picker (idle / done states) -->
+      <div id="scenarioPicker" class="grid grid-cols-3 gap-3 mb-6 text-left">
+        <button data-scenario="reimbursly"
+          class="scenario-card selected flex flex-col gap-1 p-3 rounded-xl border-2 transition-all text-left">
+          <span class="text-xs font-bold tracking-wide scenario-name">Reimbursly</span>
+          <span class="text-xs scenario-industry opacity-60">Expense Management</span>
+        </button>
+        <button data-scenario="absencia"
+          class="scenario-card flex flex-col gap-1 p-3 rounded-xl border-2 transition-all text-left">
+          <span class="text-xs font-bold tracking-wide scenario-name">Absencia</span>
+          <span class="text-xs scenario-industry opacity-60">Leave Management</span>
+        </button>
+        <button data-scenario="pingio"
+          class="scenario-card flex flex-col gap-1 p-3 rounded-xl border-2 transition-all text-left">
+          <span class="text-xs font-bold tracking-wide scenario-name">Pingio</span>
+          <span class="text-xs scenario-industry opacity-60">API Monitoring</span>
+        </button>
+      </div>
 
       <!-- CTA button (idle / done states) -->
       <div id="startWrap">

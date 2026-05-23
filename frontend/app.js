@@ -18,7 +18,29 @@ document.addEventListener('DOMContentLoaded', () => {
     updateThemeIcon();
     setTimeout(() => html.classList.remove('theme-transitioning'), 300);
   });
+
+  // Scenario picker
+  document.querySelectorAll('.scenario-card').forEach(card => {
+    card.addEventListener('click', () => {
+      selectedScenario = card.dataset.scenario;
+      document.querySelectorAll('.scenario-card').forEach(c => c.classList.remove('selected'));
+      card.classList.add('selected');
+      document.getElementById('agentSubtitle').textContent = SCENARIO_META[selectedScenario].subtitle;
+    });
+  });
 });
+
+// ============================================================
+// Scenarios
+// ============================================================
+
+const SCENARIO_META = {
+  reimbursly: { name: 'Reimbursly', subtitle: 'Reimbursly · Customer Research Interviewer' },
+  absencia:   { name: 'Absencia',   subtitle: 'Absencia · Customer Research Interviewer'   },
+  pingio:     { name: 'Pingio',     subtitle: 'Pingio · Customer Research Interviewer'     },
+};
+
+let selectedScenario = 'reimbursly';
 
 // ============================================================
 // Config
@@ -219,7 +241,7 @@ async function connect() {
     // Send a start message immediately — AgentCore's WS proxy
     // doesn't forward server→client messages until the client
     // sends at least one message.
-    ws.send(JSON.stringify({ type: 'start' }));
+    ws.send(JSON.stringify({ type: 'start', scenario: selectedScenario }));
   };
 
   ws.onmessage = (ev) => {
@@ -454,6 +476,7 @@ function setState(s) {
   startWrap.classList.toggle('hidden', !showStart);
   callControls.classList.toggle('hidden', !showControls);
   callEndedWrap.classList.toggle('hidden', !showEnded);
+  document.getElementById('scenarioPicker').classList.toggle('hidden', s !== 'idle' && s !== 'done');
 
   startBtn.textContent = s === 'done' ? 'Start Another Interview' : 'Talk with Agent';
   if (s === 'done') {

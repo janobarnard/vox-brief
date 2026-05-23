@@ -56,11 +56,12 @@ def _make_client() -> BedrockRuntimeClient:
 
 
 class NovaSonicSession:
-    def __init__(self, on_audio, on_transcript, on_done, on_error):
+    def __init__(self, on_audio, on_transcript, on_done, on_error, system_prompt=None):
         self.on_audio = on_audio
         self.on_transcript = on_transcript
         self.on_done = on_done
         self.on_error = on_error
+        self._system_prompt = system_prompt or INTERVIEW_SYSTEM_PROMPT
 
         self._client = _make_client()
         self._stream = None
@@ -224,7 +225,7 @@ class NovaSonicSession:
         await self._send({"event": {"textInput": {
             "promptName": self._prompt_name,
             "contentName": name,
-            "content": INTERVIEW_SYSTEM_PROMPT,
+            "content": self._system_prompt,
         }}})
         await self._send({"event": {"contentEnd": {
             "promptName": self._prompt_name,
