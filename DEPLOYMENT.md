@@ -2,13 +2,14 @@
 
 ## Prerequisites
 
-### Quickest path — prebuilt image (no Docker required)
+### Quickest path — prebuilt image
 - AWS CLI configured with a profile
+- Docker installed and logged in to Docker Hub (`docker login`)
 - `jq` installed
 
 ### Full build from source
 - AWS CLI configured with a profile
-- Docker with buildx support (Docker Desktop or similar)
+- Docker with buildx support (Docker Desktop or similar), logged in to Docker Hub
 - `jq` installed
 
 ## Deploy
@@ -68,8 +69,16 @@ aws --profile $PROFILE --region us-east-1 \
   cloudformation delete-stack --stack-name vox-brief-bootstrap
 ```
 
-## Docker note (Linux with Docker Desktop)
+## Docker notes
 
+### Log in to Docker Hub first
+Both deploy paths pull from Docker Hub. If you haven't logged in, the pull will time out:
+
+```bash
+docker login
+```
+
+### Linux with Docker Desktop
 If Docker uses a non-default socket, set before running deploy.sh:
 
 ```bash
